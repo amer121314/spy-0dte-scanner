@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPX 0DTE Scanner</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #080c14; color: #d0d5e0; font-family: 'Segoe UI', Arial, sans-serif; min-height: 100vh; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: #1a2035; }
+
+.header { padding: 12px 16px; border-bottom: 1px solid #111827; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot-live { background: #00ff88; box-shadow: 0 0 8px #00ff8880; animation: blink 2s infinite; }
+.dot-off { background: #ff3b48; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.delay-badge { background: #1a1400; color: #a89242; border: 1px solid #2a2000; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+.btn { padding: 5px 12px; border-radius: 5px; border: none; cursor: pointer; font-size: 11px; font-weight: 700; }
+.btn-start { background: rgba(255,59,72,0.1); color: #ff3b48; }
+.btn-live  { background: rgba(0,255,136,0.1); color: #00ff88; }
+.btn-hist  { background: rgba(108,92,231,0.1); color: #9b90e0; }
+.btn-back  { background: rgba(0,255,136,0.08); color: #00ff88; }
+.btn-refresh { background: transparent; color: #555; border: 1px solid #1a2035; }
+
+.sub-info { font-size: 9px; color: #333c50; margin-top: 3px; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; padding: 10px 16px; }
+@media(max-width:500px){ .stats-grid { grid-template-columns: repeat(2,1fr); } }
+.stat-card { background: #0c1018; border: 1px solid #111827; border-radius: 8px; padding: 8px 10px; }
+.stat-label { font-size: 8px; color: #333c50; font-weight: 600; letter-spacing: 1px; }
+.stat-val { font-size: 20px; font-weight: 700; font-family: monospace; margin-top: 2px; }
+
+.filters { display: flex; align-items: center; gap: 6px; padding: 0 16px 8px; flex-wrap: wrap; }
+.fgroup { display: flex; gap: 1px; background: #0c1018; border-radius: 5px; padding: 2px; }
+.fbtn { padding: 3px 10px; border-radius: 4px; border: none; cursor: pointer; font-size: 9px; font-weight: 600; background: transparent; color: #444; }
+.fbtn-active-g { background: rgba(0,255,136,0.1); color: #00ff88; }
+.fbtn-active-y { background: rgba(255,193,7,0.08); color: #ffc107; }
+.fbtn-active-p { background: rgba(108,92,231,0.1); color: #9b90e0; }
+
+.contracts-list { padding: 0 16px 16px; }
+.contract { border-radius: 8px; padding: 9px 11px; margin-bottom: 4px; cursor: pointer; transition: background 0.1s; }
+.contract-normal { background: #0c1018; border: 1px solid #111827; }
+.contract-hot { background: linear-gradient(135deg, rgba(0,255,136,0.03), #080c14); border: 1px solid rgba(0,255,136,0.15); }
+.contract:hover { background: #131828; }
+
+.hot-tag { float: right; background: linear-gradient(135deg,#00ff88,#00bb60); color: #080c14; font-size: 7px; font-weight: 800; padding: 1px 7px; border-radius: 0 7px 0 6px; margin: -9px -11px 0 0; letter-spacing: 1px; }
+.type-call { background: rgba(0,255,136,0.06); color: #00ff88; padding: 1px 6px; border-radius: 3px; font-size: 8px; font-weight: 700; }
+.type-put  { background: rgba(255,59,72,0.06);  color: #ff3b48; padding: 1px 6px; border-radius: 3px; font-size: 8px; font-weight: 700; }
+
+.metric { display: flex; flex-direction: column; align-items: center; padding: 2px 5px; border-radius: 3px; }
+.metric-hi { background: rgba(0,255,136,0.04); border: 1px solid rgba(0,255,136,0.1); }
+.metric-lbl { font-size: 6px; color: #333c50; font-weight: 600; }
+.metric-val { font-size: 9px; font-weight: 600; font-family: monospace; }
+
+.expand-section { margin-top: 8px; padding-top: 8px; border-top: 1px solid #111827; }
+.expand-row { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 3px; }
+.expand-key { color: #444; }
+.expand-val { color: #aab; font-family: monospace; }
+.score-bar-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+.score-bar-bg { flex: 1; height: 3px; background: #131828; border-radius: 2px; }
+.score-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+.watch-btn { padding: 3px 8px; border-radius: 4px; border: none; cursor: pointer; font-size: 8px; font-weight: 600; background: rgba(108,92,231,0.1); color: #9b90e0; flex-shrink: 0; }
+.watch-btn-added { color: #555; cursor: default; }
+
+.watchlist-box { margin: 0 16px 8px; padding: 10px 12px; background: rgba(108,92,231,0.03); border: 1px solid rgba(108,92,231,0.1); border-radius: 8px; }
+.watch-item { display: flex; align-items: center; gap: 6px; padding: 5px 7px; border-radius: 5px; font-size: 11px; margin-bottom: 3px; }
+.watch-exploded { background: rgba(0,255,136,0.06); border: 1px solid rgba(0,255,136,0.15); }
+.watch-failed   { background: rgba(255,59,72,0.03); border: 1px solid rgba(255,59,72,0.08); }
+.watch-waiting  { background: #0c1018; border: 1px solid #111827; }
+
+.error-box { margin: 8px 16px; padding: 10px 12px; background: rgba(255,59,72,0.05); border: 1px solid rgba(255,59,72,0.15); border-radius: 6px; font-size: 12px; color: #ff6b6b; }
+.center-box { text-align: center; padding: 50px 20px; }
+.fetch-btn { padding: 12px 32px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 700; background: linear-gradient(135deg,#00ff88,#00cc6a); color: #080c14; }
+.loading-icon { font-size: 30px; animation: blink 1.5s infinite; }
+
+.hist-date { padding: 7px 10px; border-radius: 5px; background: #0c1018; border: 1px solid #111827; margin-bottom: 4px; cursor: pointer; font-size: 11px; }
+.hist-date:hover { border-color: rgba(108,92,231,0.3); }
+.hist-date-sel { border-color: rgba(108,92,231,0.5); background: rgba(108,92,231,0.05); }
+.hist-scan { display: inline-block; padding: 4px 8px; border-radius: 4px; background: #0c1018; border: 1px solid #111827; margin: 2px; cursor: pointer; font-size: 10px; }
+.hist-scan:hover { border-color: rgba(0,255,136,0.2); }
+.hist-scan-sel { border-color: rgba(0,255,136,0.4); }
+
+.footer { margin-top: 14px; padding: 10px 16px; border-top: 1px solid #0d1120; font-size: 7px; color: #1d2233; text-align: center; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+var API_KEY = "7TIsr4oKxRzk6kr4mFFNDbpdgZ1My2wu";
+var API_BASE = "https://api.polygon.io";
+var REFRESH_SEC = 60;
+
+var S = {
+  view: "scanner",
+  contracts: [],
+  price: 0,
+  loading: false,
+  error: "",
+  lastUp: null,
+  isLive: false,
+  filter: "all",
+  sortBy: "score",
+  minScore: 0,
+  expanded: null,
+  cd: 0,
+  history: {},
+  watchlist: [],
+  selDate: null,
+  selScan: null
+};
+
+try { S.history  = JSON.parse(localStorage.getItem("spx2_hist") || "{}"); } catch(e){}
+try { S.watchlist = JSON.parse(localStorage.getItem("spx2_wl") || "[]"); } catch(e){}
+
+var timer = null;
+
+function saveHist() { try { localStorage.setItem("spx2_hist", JSON.stringify(S.history)); } catch(e){} }
+function saveWL()   { try { localStorage.setItem("spx2_wl",   JSON.stringify(S.watchlist)); } catch(e){} }
+
+function getToday() {
+  var d = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
+  var y = d.getFullYear();
+  var m = String(d.getMonth()+1).padStart(2,"0");
+  var day = String(d.getDate()).padStart(2,"0");
+  return y + "-" + m + "-" + day;
+}
+
+function marketStatus() {
+  var d = new Date(new Date().toLocaleString("en-US", {timeZone: "America/New_York"}));
+  var wd = d.getDay(), h = d.getHours(), m = d.getMinutes(), t = h*60+m;
+  if (wd===0||wd===6) return "عطلة";
+  if (t < 570) return "يفتح 9:30 AM ET";
+  if (t > 960) return "مغلق";
+  return "مفتوح";
+}
+
+function calcScore(c) {
+  var voi = c.oi > 0 ? c.vol / c.oi : 0;
+  var voiS = Math.min(voi * 5, 25);
+  var p = c.last || 0;
+  var cheap = (c.otm && p > 0 && p < 1) ? 20 : (c.otm && p < 3) ? 14 : (c.otm && p < 6) ? 8 : c.otm ? 3 : 0;
+  var iv = (c.iv || 0) * 100;
+  var ivS = iv > 100 ? 15 : iv > 70 ? 12 : iv > 50 ? 8 : iv > 30 ? 4 : 0;
+  var volS = c.vol > 10000 ? 10 : c.vol > 5000 ? 8 : c.vol > 1000 ? 5 : c.vol > 200 ? 2 : 0;
+  var mid = (c.ask + c.bid) / 2;
+  var spr = mid > 0 ? (c.ask - c.bid) / mid : 1;
+  var sprS = spr < 0.08 ? 8 : spr < 0.15 ? 6 : spr < 0.3 ? 3 : 0;
+  var chgAbs = Math.abs(c.pctChg || 0);
+  var chgS = chgAbs > 50 ? 12 : chgAbs > 20 ? 8 : chgAbs > 10 ? 4 : 0;
+  var otmB = c.otm ? 10 : 0;
+  var total = Math.min(Math.round(voiS + cheap + ivS + volS + sprS + chgS + otmB), 100);
+  return {
+    total: total,
+    bd: {
+      "Vol/OI": { v: Math.round(voiS), m: 25, d: voi.toFixed(1)+"x" },
+      "Cheap":  { v: Math.round(cheap), m: 20, d: "$"+p.toFixed(2) },
+      "IV":     { v: Math.round(ivS),   m: 15, d: iv.toFixed(0)+"%" },
+      "Volume": { v: Math.round(volS),  m: 10, d: c.vol > 999 ? (c.vol/1000).toFixed(1)+"K" : ""+c.vol },
+      "Spread": { v: Math.round(sprS),  m: 8,  d: (spr*100).toFixed(0)+"%" },
+      "Move":   { v: Math.round(chgS),  m: 12, d: (c.pctChg||0).toFixed(1)+"%" },
+      "OTM":    { v: Math.round(otmB),  m: 10, d: c.otm ? "Yes" : "No" }
+    }
+  };
+}
+
+function ring(score, size) {
+  size = size || 36;
+  var r = (size-5)/2, ci = 2*Math.PI*r, off = ci - (score/100)*ci;
+  var cl = score>=65 ? "#00ff88" : score>=45 ? "#ffc107" : score>=25 ? "#ff8c00" : "#333";
+  return '<svg width="'+size+'" height="'+size+'" style="flex-shrink:0">'
+    +'<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+r+'" fill="none" stroke="#161c2a" stroke-width="3"/>'
+    +'<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+r+'" fill="none" stroke="'+cl+'" stroke-width="3"'
+    +' stroke-dasharray="'+ci+'" stroke-dashoffset="'+off+'" stroke-linecap="round"'
+    +' transform="rotate(-90 '+(size/2)+' '+(size/2)+')">'
+    +'</circle>'
+    +'<text x="'+(size/2)+'" y="'+(size/2+1)+'" text-anchor="middle" dominant-baseline="middle"'
+    +' fill="'+cl+'" font-size="10" font-weight="700" font-family="monospace">'+score+'</text>'
+    +'</svg>';
+}
+
+function bar(v, m) {
+  var pct = (v/m)*100;
+  var clr = v > m*0.6 ? "#00ff88" : "#252d40";
+  return '<div class="score-bar-bg"><div class="score-bar-fill" style="width:'+pct+'%;background:'+clr+'"></div></div>';
+}
+
+function fmtVol(v) { return v > 999 ? (v/1000).toFixed(1)+"K" : ""+v; }
+
+async function fetchData() {
+  S.loading = true; S.error = ""; render();
+  try {
+    var today = getToday();
+
+    // Get SPX price
+    var spxPrice = 0;
+    try {
+      var pr = await fetch(API_BASE+"/v2/aggs/ticker/I:SPX/prev?adjusted=true&apiKey="+API_KEY);
+      var pd = await pr.json();
+      spxPrice = (pd && pd.results && pd.results[0]) ? pd.results[0].c : 0;
+    } catch(e){}
+    if (!spxPrice) {
+      try {
+        var pr2 = await fetch(API_BASE+"/v2/aggs/ticker/SPX/prev?adjusted=true&apiKey="+API_KEY);
+        var pd2 = await pr2.json();
+        spxPrice = (pd2 && pd2.results && pd2.results[0]) ? pd2.results[0].c : 0;
+      } catch(e){}
+    }
+
+    // Get SPX options
+    var url = API_BASE+"/v3/snapshot/options/SPX?expiration_date="+today+"&limit=250&apiKey="+API_KEY;
+    var res = await fetch(url);
+    if (!res.ok) {
+      var ed = {};
+      try { ed = await res.json(); } catch(e){}
+      if (res.status === 403) throw new Error("API Key لا يملك صلاحية Options");
+      if (res.status === 429) throw new Error("Rate Limit — انتظر دقيقة");
+      throw new Error("خطأ " + res.status + ": " + (ed.error || ed.message || res.statusText));
+    }
+    var data = await res.json();
+    var results = (data && data.results) ? data.results : [];
+
+    if (!results.length) {
+      var res2 = await fetch(API_BASE+"/v3/snapshot/options/SPX?limit=250&apiKey="+API_KEY);
+      var data2 = await res2.json();
+      results = (data2 && data2.results) ? data2.results : [];
+    }
+
+    if (!results.length) throw new Error("لا عقود متاحة — السوق ربما مغلق");
+
+    var uP = spxPrice;
+    var contracts = [];
+    results.forEach(function(r) {
+      var d = r.details || {};
+      var q = r.day || {};
+      var strike = d.strike_price || 0;
+      var isCall = d.contract_type === "call";
+      var otm = isCall ? strike > uP : strike < uP;
+      var last = (r.last_quote && r.last_quote.midpoint) ? r.last_quote.midpoint : (q.close || (r.last_trade && r.last_trade.price) || 0);
+      var bid = (r.last_quote && r.last_quote.bid) ? r.last_quote.bid : 0;
+      var ask = (r.last_quote && r.last_quote.ask) ? r.last_quote.ask : 0;
+      var vol = q.volume || 0;
+      var oi = r.open_interest || 0;
+      var iv = r.implied_volatility || 0;
+      var open = q.open || last;
+      var pctChg = open > 0 ? ((last - open) / open * 100) : 0;
+      if (vol === 0 && oi === 0) return;
+      var c = {
+        sym: d.ticker || ("SPX_"+strike+"_"+(isCall?"C":"P")),
+        strike: strike,
+        type: isCall ? "call" : "put",
+        uPrice: uP, last: last, bid: bid, ask: ask,
+        vol: vol, oi: oi, iv: iv, pctChg: pctChg,
+        otm: otm,
+        dist: Math.abs(strike - uP).toFixed(1),
+        distP: uP > 0 ? ((Math.abs(strike - uP) / uP) * 100).toFixed(2) : "0",
+        volOi: oi > 0 ? vol / oi : 0
+      };
+      var sc = calcScore(c);
+      c.score = sc.total; c.bd = sc.bd;
+      contracts.push(c);
+    });
+
+    if (!contracts.length) throw new Error("لا عقود — السوق مغلق أو لا يوجد 0DTE اليوم");
+
+    S.contracts = contracts;
+    S.price = uP;
+    S.lastUp = new Date();
+    S.isLive = true;
+
+    // Save history
+    var day = getToday();
+    if (!S.history[day]) S.history[day] = [];
+    var top50 = contracts.slice().sort(function(a,b){return b.score-a.score;}).slice(0,50).map(function(c){
+      return { s:c.sym, k:c.strike, t:c.type, l:c.last, b:c.bid, a:c.ask, v:c.vol, o:c.oi, iv:c.iv, p:c.pctChg, otm:c.otm, sc:c.score, voi:c.volOi };
+    });
+    S.history[day].push({ time: new Date().toLocaleTimeString(), ts: Date.now(), spx: uP, hot: contracts.filter(function(c){return c.score>=60;}).length, n: contracts.length, c: top50 });
+    if (S.history[day].length > 20) S.history[day] = S.history[day].slice(-20);
+    var keys = Object.keys(S.history).sort();
+    while (keys.length > 30) { delete S.history[keys.shift()]; }
+    saveHist();
+
+    // Update watchlist
+    S.watchlist = S.watchlist.map(function(w) {
+      var m = contracts.find(function(c){return c.sym===w.sym;});
+      return m ? Object.assign({}, w, {cur: m.last}) : w;
+    });
+    saveWL();
+
+  } catch(e) {
+    S.error = e.message;
+  }
+  S.loading = false;
+  render();
+}
+
+function startTimer() {
+  if (timer) clearInterval(timer);
+  S.cd = REFRESH_SEC;
+  timer = setInterval(function() {
+    S.cd--;
+    var el = document.getElementById("cd");
+    if (el) el.textContent = S.cd + "s";
+    if (S.cd <= 0) { fetchData(); S.cd = REFRESH_SEC; }
+  }, 1000);
+}
+
+function toggleLive() {
+  if (S.isLive) {
+    S.isLive = false;
+    if (timer) { clearInterval(timer); timer = null; }
+  } else {
+    fetchData();
+    startTimer();
+  }
+  render();
+}
+
+function addWatch(sym, strike, type, score, last) {
+  if (S.watchlist.find(function(w){return w.sym===sym;})) return;
+  S.watchlist.push({ id: Date.now(), sym: sym, str: strike, ty: type, sc: score, en: last, cur: null, at: Date.now() });
+  saveWL(); render();
+}
+
+function removeWatch(id) {
+  S.watchlist = S.watchlist.filter(function(w){return w.id !== id;});
+  saveWL(); render();
+}
+
+function toggleExp(sym) {
+  S.expanded = S.expanded === sym ? null : sym;
+  render();
+}
+
+function getDisplayed(contracts) {
+  var r = contracts.slice();
+  if (S.filter === "calls") r = r.filter(function(c){return c.type==="call";});
+  if (S.filter === "puts")  r = r.filter(function(c){return c.type==="put";});
+  if (S.minScore > 0) r = r.filter(function(c){return c.score >= S.minScore;});
+  r.sort(function(a,b) {
+    if (S.sortBy === "score")  return b.score - a.score;
+    if (S.sortBy === "voloi")  return b.volOi - a.volOi;
+    if (S.sortBy === "volume") return b.vol - a.vol;
+    if (S.sortBy === "cheap")  return a.last - b.last;
+    if (S.sortBy === "iv")     return b.iv - a.iv;
+    return 0;
+  });
+  return r;
+}
+
+function contractCard(c, i, inWatch) {
+  var isHot = c.score >= 60;
+  var chgClr = c.pctChg >= 0 ? "#00ff88" : "#ff3b48";
+  var exp = S.expanded === c.sym;
+  var h = '<div class="contract ' + (isHot ? "contract-hot" : "contract-normal") + '" onclick="toggleExp(\'' + c.sym + '\')">';
+  if (isHot) h += '<div class="hot-tag">HOT</div>';
+  h += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
+  h += '<span style="width:18px;text-align:center;font-size:9px;font-weight:700;color:' + (i<3?"#00ff88":"#333c50") + '">' + (i+1) + '</span>';
+  h += '<span class="' + (c.type==="call"?"type-call":"type-put") + '">' + c.type + '</span>';
+  h += '<div style="min-width:60px">';
+  h += '<div style="display:flex;align-items:baseline;gap:3px">';
+  h += '<span style="font-size:13px;font-weight:700;font-family:monospace">' + c.strike + '</span>';
+  h += '<span style="font-size:7px;color:#333c50">' + (c.otm?"OTM":"ITM") + '</span>';
+  h += '</div>';
+  h += '<div style="display:flex;gap:4px;margin-top:1px">';
+  h += '<span style="font-size:11px;color:#ffc107;font-weight:600;font-family:monospace">$' + c.last.toFixed(2) + '</span>';
+  h += '<span style="font-size:8px;color:' + chgClr + '">' + (c.pctChg>=0?"+":"") + c.pctChg.toFixed(1) + '%</span>';
+  h += '</div></div>';
+  h += '<div style="display:flex;gap:4px;flex:1;justify-content:center;flex-wrap:wrap">';
+  var metrics = [
+    {l:"V/OI", v:c.volOi.toFixed(1)+"x", hi:c.volOi>3},
+    {l:"Vol",  v:fmtVol(c.vol),           hi:c.vol>3000},
+    {l:"IV",   v:(c.iv*100).toFixed(0)+"%", hi:c.iv>0.6}
+  ];
+  metrics.forEach(function(m) {
+    h += '<div class="metric ' + (m.hi?"metric-hi":"") + '">';
+    h += '<span class="metric-lbl">' + m.l + '</span>';
+    h += '<span class="metric-val" style="color:' + (m.hi?"#00ff88":"#777") + '">' + m.v + '</span>';
+    h += '</div>';
+  });
+  h += '</div>';
+  h += ring(c.score, 36);
+  var inWl = inWatch;
+  h += '<button class="watch-btn ' + (inWl?"watch-btn-added":"") + '" onclick="event.stopPropagation();' + (inWl?"":"addWatch(\'"+c.sym+"\',"+c.strike+",\'"+c.type+"\',"+c.score+","+c.last+")") + '">' + (inWl?"✓":"👁") + '</button>';
+  h += '</div>';
+
+  if (exp) {
+    h += '<div class="expand-section">';
+    var rows = [["Bid","$"+c.bid.toFixed(2)],["Ask","$"+c.ask.toFixed(2)],["Volume",c.vol.toLocaleString()],["OI",c.oi.toLocaleString()],["IV",(c.iv*100).toFixed(1)+"%"],["V/OI",c.volOi.toFixed(2)+"x"],["Dist","$"+c.dist],["Away",c.distP+"%"]];
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">';
+    rows.forEach(function(row) {
+      h += '<div class="expand-row"><span class="expand-key">' + row[0] + '</span><span class="expand-val">' + row[1] + '</span></div>';
+    });
+    h += '</div>';
+    h += '<div style="font-size:8px;color:#333c50;font-weight:600;letter-spacing:1px;margin-bottom:4px">SCORE: ' + c.score + '/100</div>';
+    Object.keys(c.bd).forEach(function(k) {
+      var s = c.bd[k];
+      h += '<div class="score-bar-row">';
+      h += '<span style="width:50px;font-size:8px;color:#555">' + k + '</span>';
+      h += bar(s.v, s.m);
+      h += '<span style="width:28px;text-align:right;font-size:7px;color:#555;font-family:monospace">' + s.v + '/' + s.m + '</span>';
+      h += '<span style="width:36px;text-align:right;font-size:7px;color:#444;font-family:monospace">' + s.d + '</span>';
+      h += '</div>';
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function renderScanner() {
+  var displayed = getDisplayed(S.contracts);
+  var hotCount = S.contracts.filter(function(c){return c.score>=60;}).length;
+  var cV = S.contracts.filter(function(c){return c.type==="call";}).reduce(function(s,c){return s+c.vol;},0);
+  var pV = S.contracts.filter(function(c){return c.type==="put";}).reduce(function(s,c){return s+c.vol;},0);
+  var cpR = pV > 0 ? (cV/pV).toFixed(2) : "N/A";
+
+  var h = '<div class="header">';
+  h += '<div>';
+  h += '<div class="title">';
+  h += '<span class="dot ' + (S.isLive?"dot-live":"dot-off") + '"></span>';
+  h += '🔬 SPX 0DTE <span style="color:#00ff88">Scanner</span>';
+  if (S.price > 0) h += '<span style="font-size:13px;color:#ffc107;font-weight:600;font-family:monospace">$' + S.price.toFixed(2) + '</span>';
+  h += '<span class="delay-badge">⏱ 15min DELAY</span>';
+  h += '</div>';
+  h += '<div class="sub-info">SPX • ' + getToday() + ' • ' + S.contracts.length + ' contracts • ' + marketStatus() + (S.lastUp ? ' • ' + S.lastUp.toLocaleTimeString() : '') + '</div>';
+  h += '</div>';
+  h += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
+  if (S.isLive) h += '<span id="cd" style="font-size:10px;color:#333c50;font-family:monospace">' + S.cd + 's</span>';
+  h += '<button class="btn ' + (S.isLive?"btn-live":"btn-start") + '" onclick="toggleLive()">' + (S.isLive?"● LIVE":"○ START") + '</button>';
+  h += '<button class="btn btn-refresh" onclick="fetchData()" ' + (S.loading?"disabled":"") + '>' + (S.loading?"⏳":"↻") + '</button>';
+  h += '<button class="btn btn-hist" onclick="S.view=\'history\';render()">📅 History</button>';
+  h += '</div></div>';
+
+  if (S.error) h += '<div class="error-box">❌ ' + S.error + '</div>';
+
+  if (S.contracts.length > 0) {
+    h += '<div class="stats-grid">';
+    var stats = [
+      {i:"🔥",l:"HOT",v:hotCount,c:"#00ff88"},
+      {i:"📞",l:"CALL VOL",v:cV.toLocaleString(),c:"#00ff88"},
+      {i:"📉",l:"PUT VOL",v:pV.toLocaleString(),c:"#ff3b48"},
+      {i:"⚖️",l:"C/P",v:cpR,c:"#ffc107"}
+    ];
+    stats.forEach(function(s) {
+      h += '<div class="stat-card"><div class="stat-label">' + s.i + ' ' + s.l + '</div><div class="stat-val" style="color:' + s.c + '">' + s.v + '</div></div>';
+    });
+    h += '</div>';
+  }
+
+  if (S.watchlist.length > 0) {
+    h += '<div class="watchlist-box"><div style="font-size:10px;font-weight:700;color:#8b80d4;margin-bottom:7px">👁 WATCHLIST — ' + S.watchlist.length + '</div>';
+    S.watchlist.forEach(function(w) {
+      var age = Math.round((Date.now()-w.at)/60000);
+      var diff = w.cur !== null ? w.cur - w.en : null;
+      var pct = (diff !== null && w.en > 0) ? (diff/w.en*100) : null;
+      var exploded = pct !== null && pct > 50;
+      var failed   = pct !== null && pct < -30;
+      var cls = exploded ? "watch-exploded" : failed ? "watch-failed" : "watch-waiting";
+      h += '<div class="watch-item ' + cls + '">';
+      h += '<span class="' + (w.ty==="call"?"type-call":"type-put") + '">' + w.ty + '</span>';
+      h += '<span style="font-weight:600;font-family:monospace">' + w.str + '</span>';
+      h += '<span style="color:#555;font-size:9px">Sc:' + w.sc + '</span>';
+      h += '<span style="color:#777;font-size:9px">$' + w.en.toFixed(2) + '</span>';
+      if (pct !== null) {
+        h += '<span style="font-weight:700;font-size:11px;color:' + (pct>=0?"#00ff88":"#ff3b48") + ';margin-left:auto;font-family:monospace">' + (pct>=0?"+":"") + pct.toFixed(1) + '%' + (exploded?" 🔥":"") + '</span>';
+      } else {
+        h += '<span style="color:#444;font-size:9px;margin-left:auto">waiting...</span>';
+      }
+      h += '<span style="color:#444;font-size:8px">' + age + 'm</span>';
+      h += '<button onclick="removeWatch(' + w.id + ')" style="background:none;border:none;color:#444;cursor:pointer;font-size:14px">×</button>';
+      h += '</div>';
+    });
+    h += '</div>';
+  }
+
+  if (S.contracts.length > 0) {
+    h += '<div class="filters">';
+    h += '<div class="fgroup">';
+    ["all","calls","puts"].forEach(function(f) {
+      var lbl = f==="all"?"All":f==="calls"?"Calls":"Puts";
+      var act = S.filter===f ? "fbtn-active-g" : "";
+      h += '<button class="fbtn ' + act + '" onclick="S.filter=\'' + f + '\';render()">' + lbl + '</button>';
+    });
+    h += '</div><div class="fgroup">';
+    [["score","Score"],["voloi","V/OI"],["volume","Vol"],["cheap","Cheap"],["iv","IV"]].forEach(function(pair) {
+      var act = S.sortBy===pair[0] ? "fbtn-active-y" : "";
+      h += '<button class="fbtn ' + act + '" onclick="S.sortBy=\'' + pair[0] + '\';render()">' + pair[1] + '</button>';
+    });
+    h += '</div><div class="fgroup">';
+    [0,30,50,65].forEach(function(s) {
+      var act = S.minScore===s ? "fbtn-active-p" : "";
+      var lbl = s===0?"All":s+"+";
+      h += '<button class="fbtn ' + act + '" onclick="S.minScore=' + s + ';render()">' + lbl + '</button>';
+    });
+    h += '</div>';
+    h += '<span style="margin-left:auto;font-size:9px;color:#333c50">' + displayed.length + ' shown</span>';
+    h += '</div>';
+  }
+
+  if (S.loading && !S.contracts.length) {
+    h += '<div class="center-box"><div class="loading-icon">📡</div><div style="font-size:12px;color:#555;margin-top:8px">Fetching SPX options from Polygon.io...</div></div>';
+  } else if (!S.loading && !S.contracts.length && !S.error) {
+    h += '<div class="center-box"><button class="fetch-btn" onclick="fetchData()">📡 Fetch Live Data</button></div>';
+  }
+
+  h += '<div class="contracts-list">';
+  displayed.forEach(function(c, i) {
+    var inWatch = !!S.watchlist.find(function(w){return w.sym===c.sym;});
+    h += contractCard(c, i, inWatch);
+  });
+  h += '</div>';
+
+  h += '<div class="footer">Polygon.io Starter (15-min delayed) • Auto-refresh ' + REFRESH_SEC + 's • Auto-save History<br><span style="color:#ff3b48">⚠️ Not financial advice. 0DTE = extreme risk.</span></div>';
+  return h;
+}
+
+function renderHistory() {
+  var histDates = Object.keys(S.history).sort().reverse();
+  var scans = S.selDate ? (S.history[S.selDate] || []).slice().reverse() : [];
+  var scan = S.selScan !== null ? scans[S.selScan] : null;
+
+  var h = '<div style="padding:12px 16px">';
+  h += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">';
+  h += '<div style="display:flex;align-items:center;gap:8px">';
+  h += '<span style="font-size:16px;font-weight:700">📅 History</span>';
+  if (S.selDate) h += '<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(108,92,231,.1);color:#9b90e0;font-family:monospace">' + S.selDate + '</span>';
+  h += '</div>';
+  h += '<div style="display:flex;gap:6px">';
+  h += '<button class="btn btn-back" onclick="S.view=\'scanner\';S.selDate=null;S.selScan=null;render()">← Scanner</button>';
+  h += '<button class="btn" style="background:rgba(255,59,72,.06);color:#ff3b48" onclick="if(confirm(\'حذف كل السجل؟\')){S.history={};S.selDate=null;S.selScan=null;saveHist();render();}">🗑 Clear</button>';
+  h += '</div></div>';
+
+  if (!histDates.length) {
+    h += '<div style="text-align:center;padding:40px;color:#555;font-size:12px">لا يوجد سجل بعد. شغّل الماسح أولاً.</div>';
+  } else {
+    h += '<div style="display:grid;grid-template-columns:' + (S.selDate?"160px 1fr":"1fr") + ';gap:10px">';
+    h += '<div><div style="font-size:8px;color:#333c50;font-weight:600;letter-spacing:1px;margin-bottom:6px">DATES</div>';
+    histDates.forEach(function(d) {
+      var sc = S.history[d] || [];
+      var cls = S.selDate===d ? "hist-date hist-date-sel" : "hist-date";
+      h += '<div class="' + cls + '" onclick="S.selDate=\'' + d + '\';S.selScan=null;render()">';
+      h += '<div style="font-weight:600">' + d + '</div>';
+      h += '<div style="font-size:9px;color:#555">' + sc.length + ' scans</div>';
+      h += '</div>';
+    });
+    h += '</div>';
+    if (S.selDate) {
+      h += '<div>';
+      h += '<div style="margin-bottom:8px"><div style="font-size:8px;color:#333c50;font-weight:600;letter-spacing:1px;margin-bottom:5px">SCANS</div><div style="display:flex;gap:4px;flex-wrap:wrap">';
+      scans.forEach(function(sc, i) {
+        var cls = S.selScan===i ? "hist-scan hist-scan-sel" : "hist-scan";
+        h += '<div class="' + cls + '" onclick="S.selScan=' + i + ';render()">' + sc.time + ' • $' + (sc.spx||0).toFixed(2) + ' • ' + sc.hot + ' hot/' + sc.n + '</div>';
+      });
+      h += '</div></div>';
+      if (scan) {
+        var histContracts = scan.c.map(function(c) {
+          return {
+            sym:c.s, strike:c.k, type:c.t, last:c.l, bid:c.b, ask:c.a,
+            vol:c.v, oi:c.o, iv:c.iv, pctChg:c.p, otm:c.otm, score:c.sc, volOi:c.voi,
+            dist: Math.abs(c.k - (scan.spx||0)).toFixed(1),
+            distP: scan.spx>0 ? ((Math.abs(c.k-scan.spx)/scan.spx)*100).toFixed(2) : "0",
+            bd: calcScore({vol:c.v,oi:c.o,last:c.l,bid:c.b,ask:c.a,iv:c.iv,pctChg:c.p,otm:c.otm}).bd
+          };
+        });
+        var r = histContracts.slice();
+        if (S.filter==="calls") r=r.filter(function(c){return c.type==="call";});
+        if (S.filter==="puts")  r=r.filter(function(c){return c.type==="put";});
+        if (S.minScore>0) r=r.filter(function(c){return c.score>=S.minScore;});
+        r.sort(function(a,b){return b.score-a.score;});
+        r.forEach(function(c,i){ h += contractCard(c,i,false); });
+      }
+      h += '</div>';
+    }
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function render() {
+  var root = document.getElementById("root");
+  if (!root) return;
+  root.innerHTML = S.view === "history" ? renderHistory() : renderScanner();
+}
+
+render();
+</script>
+</body>
+</html>
