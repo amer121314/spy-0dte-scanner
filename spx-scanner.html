@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ar" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPX 0DTE Explosion Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #080c14; color: #d0d5e0; font-family: 'Inter', sans-serif; min-height: 100vh; overflow-x: hidden; }
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: #1a2035; border-radius: 3px; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.dot.live { background: #00ff88; box-shadow: 0 0 10px rgba(0,255,136,0.4); animation: pulse 2s infinite; }
+.dot.off { background: #ff3b48; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.badge { padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 600; }
+.badge-delay { background: rgba(255,193,7,0.08); color: #a89242; }
+.btn { padding: 4px 10px; border-radius: 4px; border: none; cursor: pointer; font-size: 9px; font-weight: 700; }
+.stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; padding: 10px 16px; }
+.stat-card { padding: 8px 10px; border-radius: 7px; background: rgba(12,16,28,0.8); border: 1px solid rgba(255,255,255,0.02); }
+.stat-label { font-size: 8px; color: #333c50; letter-spacing: 1px; font-weight: 600; }
+.stat-value { font-size: 18px; font-weight: 700; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+.filters { display: flex; align-items: center; gap: 6px; padding: 0 16px 8px; flex-wrap: wrap; }
+.filter-group { display: flex; gap: 1px; background: rgba(255,255,255,0.02); border-radius: 5px; padding: 1px; }
+.filter-btn { padding: 3px 12px; border-radius: 4px; border: none; cursor: pointer; font-size: 9px; font-weight: 600; background: transparent; color: #333c50; transition: 0.15s; }
+.filter-btn.ag { background: rgba(0,255,136,0.08); color: #00ff88; }
+.filter-btn.ay { background: rgba(255,193,7,0.06); color: #ffc107; }
+.filter-btn.ap { background: rgba(108,92,231,0.1); color: #9b90e0; }
+.contract { border-radius: 7px; padding: 8px 10px; position: relative; cursor: pointer; transition: 0.15s; margin-bottom: 3px; }
+.contract.normal { background: rgba(12,16,28,0.7); border: 1px solid rgba(255,255,255,0.02); }
+.contract.hot { background: linear-gradient(135deg,rgba(0,255,136,0.02),rgba(8,12,20,1)); border: 1px solid rgba(0,255,136,0.12); }
+.contract:hover { background: rgba(20,26,42,0.9); }
+.hot-badge { position: absolute; top: 0; right: 0; background: linear-gradient(135deg,#00ff88,#00bb60); color: #080c14; font-size: 7px; font-weight: 800; padding: 1px 7px 1px 10px; border-radius: 0 7px 0 6px; letter-spacing: 1px; }
+.type-badge { padding: 1px 6px; border-radius: 3px; font-size: 8px; font-weight: 700; text-transform: uppercase; }
+.type-call { background: rgba(0,255,136,0.06); color: #00ff88; }
+.type-put { background: rgba(255,59,72,0.06); color: #ff3b48; }
+.metric-badge { display: flex; flex-direction: column; align-items: center; padding: 1px 5px; border-radius: 3px; }
+.metric-badge.h { background: rgba(0,255,136,0.04); border: 1px solid rgba(0,255,136,0.08); }
+.metric-label { font-size: 6px; color: #333c50; font-weight: 600; }
+.metric-value { font-size: 9px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+.watchlist { margin: 0 16px 8px; padding: 10px 12px; background: rgba(108,92,231,0.03); border: 1px solid rgba(108,92,231,0.1); border-radius: 8px; }
+.watch-item { display: flex; align-items: center; gap: 6px; padding: 5px 7px; border-radius: 5px; font-size: 11px; margin-bottom: 3px; }
+.watch-exploded { background: rgba(0,255,136,0.06); border: 1px solid rgba(0,255,136,0.15); }
+.watch-failed { background: rgba(255,59,72,0.03); border: 1px solid rgba(255,59,72,0.08); }
+.watch-waiting { background: rgba(14,18,30,0.8); border: 1px solid rgba(255,255,255,0.03); }
+.hist-day { padding: 6px 10px; border-radius: 5px; background: rgba(12,16,28,0.8); border: 1px solid rgba(255,255,255,0.03); margin-bottom: 4px; cursor: pointer; font-size: 11px; }
+.hist-day:hover { border-color: rgba(108,92,231,0.3); }
+.hist-day.sel { border-color: rgba(108,92,231,0.5); background: rgba(108,92,231,0.05); }
+.hist-scan { padding: 5px 8px; border-radius: 4px; background: rgba(12,16,28,0.6); border: 1px solid rgba(255,255,255,0.02); margin-bottom: 3px; cursor: pointer; font-size: 10px; display:inline-block; }
+.hist-scan:hover { border-color: rgba(0,255,136,0.2); }
+.hist-scan.sel { border-color: rgba(0,255,136,0.4); }
+.error-box { margin: 8px 16px; padding: 10px; border-radius: 6px; background: rgba(255,59,72,0.05); border: 1px solid rgba(255,59,72,0.12); font-size: 11px; color: #ff6b6b; }
+.loading-center { text-align: center; padding: 40px; }
+@media (max-width: 600px) { .stats { grid-template-columns: repeat(2,1fr); } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const API_KEY = "7TIsr4oKxRzk6kr4mFFNDbpdgZ1My2wu";
+const API_BASE = "https://api.polygon.io";
+const INT = 60;
+
+let state = {
+  view: "scanner",
+  contracts: [],
+  price: 0,
+  loading: false,
+  error: "",
+  lastUp: null,
+  isLive: false,
+  filter: "all",
+  sortBy: "score",
+  minSc: 0,
+  expanded: null,
+  cd: 0,
+  history: JSON.parse(localStorage.getItem('spx_hist') || '{}'),
+  watchlist: JSON.parse(localStorage.getItem('spx_wl') || '[]'),
+  selDate: null,
+  selScan: null,
+};
+let timer = null;
+
+function calcScore(c) {
+  const voi = c.oi > 0 ? c.vol / c.oi : 0;
+  const voiS = Math.min(voi * 5, 25);
+  const p = c.last || 0;
+  const cheap = c.otm && p > 0 && p < 1 ? 20 : c.otm && p < 3 ? 14 : c.otm && p < 6 ? 8 : c.otm ? 3 : 0;
+  const iv = (c.iv || 0) * 100;
+  const ivS = iv > 100 ? 15 : iv > 70 ? 12 : iv > 50 ? 8 : iv > 30 ? 4 : 0;
+  const volS = c.vol > 10000 ? 10 : c.vol > 5000 ? 8 : c.vol > 1000 ? 5 : c.vol > 200 ? 2 : 0;
+  const mid = (c.ask + c.bid) / 2;
+  const spr = mid > 0 ? (c.ask - c.bid) / mid : 1;
+  const sprS = spr < .08 ? 8 : spr < .15 ? 6 : spr < .3 ? 3 : 0;
+  const chgS = Math.abs(c.pctChg || 0) > 50 ? 12 : Math.abs(c.pctChg || 0) > 20 ? 8 : Math.abs(c.pctChg || 0) > 10 ? 4 : 0;
+  const otmB = c.otm ? 10 : 0;
+  return {
+    total: Math.min(Math.round(voiS + cheap + ivS + volS + sprS + chgS + otmB), 100),
+    bd: {
+      "Vol/OI": { v: Math.round(voiS), m: 25, d: voi.toFixed(1)+"x" },
+      "Cheap":  { v: Math.round(cheap), m: 20, d: "$"+p.toFixed(2) },
+      "IV":     { v: Math.round(ivS),   m: 15, d: iv.toFixed(0)+"%" },
+      "Volume": { v: Math.round(volS),  m: 10, d: c.vol > 999 ? (c.vol/1000).toFixed(1)+"K" : ""+c.vol },
+      "Spread": { v: Math.round(sprS),  m: 8,  d: (spr*100).toFixed(0)+"%" },
+      "Move":   { v: Math.round(chgS),  m: 12, d: (c.pctChg||0).toFixed(1)+"%" },
+      "OTM":    { v: Math.round(otmB),  m: 10, d: c.otm ? "Yes" : "No" },
+    }
+  };
+}
+
+function ringSVG(score, size) {
+  size = size || 36;
+  const r = (size-5)/2, ci = 2*Math.PI*r, off = ci-(score/100)*ci;
+  const cl = score>=65?"#00ff88":score>=45?"#ffc107":score>=25?"#ff8c00":"#555";
+  return '<svg width="'+size+'" height="'+size+'" style="flex-shrink:0">'
+    +'<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+r+'" fill="none" stroke="#161c2a" stroke-width="3"/>'
+    +'<circle cx="'+(size/2)+'" cy="'+(size/2)+'" r="'+r+'" fill="none" stroke="'+cl+'" stroke-width="3"'
+    +' stroke-dasharray="'+ci+'" stroke-dashoffset="'+off+'" stroke-linecap="round"'
+    +' transform="rotate(-90 '+(size/2)+' '+(size/2)+')" style="transition:stroke-dashoffset 0.5s"/>'
+    +'<text x="'+(size/2)+'" y="'+(size/2+1)+'" text-anchor="middle" dominant-baseline="middle"'
+    +' fill="'+cl+'" font-size="10" font-weight="700" font-family="monospace">'+score+'</text>'
+    +'</svg>';
+}
+
+function barHTML(val, max) {
+  const pct = (val/max)*100;
+  const clr = val > max*0.6 ? "#00ff88" : "#252d40";
+  return '<div style="flex:1;height:3px;border-radius:2px;background:#131828"><div style="height:100%;width:'+pct+'%;border-radius:2px;background:'+clr+';transition:width 0.3s"></div></div>';
+}
+
+function getToday() {
+  return new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"})).toISOString().split("T")[0];
+}
+
+function marketStatus() {
+  const now = new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"}));
+  const day = now.getDay(), h = now.getHours(), m = now.getMinutes(), t = h*60+m;
+  if (day===0||day===6) return "🚫 عطلة";
+  if (t<570) return "⏳ يفتح 9:30 AM ET";
+  if (t>960) return "🔴 مغلق";
+  return "🟢 مفتوح";
+}
+
+function saveHist() { try { localStorage.setItem('spx_hist', JSON.stringify(state.history)); } catch(e){} }
+function saveWL()   { try { localStorage.setItem('spx_wl',   JSON.stringify(state.watchlist)); } catch(e){} }
+
+async function fetchData() {
+  state.loading = true; state.error = ""; render();
+  try {
+    const today = getToday();
+    // Get SPX price
+    let spyPrice = 0;
+    try {
+      const pr = await fetch(API_BASE+"/v2/aggs/ticker/SPX/prev?adjusted=true&apiKey="+API_KEY);
+      const pd = await pr.json();
+      spyPrice = pd?.results?.[0]?.c || 0;
+      if (!spyPrice) {
+        // fallback: use I:SPX
+        const pr2 = await fetch(API_BASE+"/v2/aggs/ticker/I:SPX/prev?adjusted=true&apiKey="+API_KEY);
+        const pd2 = await pr2.json();
+        spyPrice = pd2?.results?.[0]?.c || 0;
+      }
+    } catch(e){}
+
+    // Get SPX options snapshot (uses O:SPX for options)
+    const res = await fetch(API_BASE+"/v3/snapshot/options/SPX?expiration_date="+today+"&limit=250&apiKey="+API_KEY);
+    if (!res.ok) {
+      const ed = await res.json().catch(()=>({}));
+      if (res.status===403) throw new Error("API Key لا يملك صلاحية Options. تأكد من الاشتراك.");
+      if (res.status===429) throw new Error("Rate Limit! انتظر دقيقة.");
+      throw new Error("خطأ "+res.status+": "+(ed.error||ed.message||res.statusText));
+    }
+    const data = await res.json();
+
+    let results = data?.results || [];
+    if (!results.length) {
+      // fallback: no expiry filter
+      const res2 = await fetch(API_BASE+"/v3/snapshot/options/SPX?limit=250&apiKey="+API_KEY);
+      const data2 = await res2.json();
+      results = data2?.results || [];
+    }
+    if (!results.length) throw new Error("لا عقود متاحة. السوق ربما مغلق.");
+
+    const uP = spyPrice;
+    const contracts = [];
+    results.forEach(r => {
+      const d = r.details || {};
+      const q = r.day || {};
+      const strike = d.strike_price || 0;
+      const isCall = d.contract_type === "call";
+      const otm = isCall ? strike > uP : strike < uP;
+      const last = r.last_quote?.midpoint || q.close || r.last_trade?.price || 0;
+      const bid = r.last_quote?.bid || 0;
+      const ask = r.last_quote?.ask || 0;
+      const vol = q.volume || 0;
+      const oi = r.open_interest || 0;
+      const iv = r.implied_volatility || 0;
+      const open = q.open || last;
+      const pctChg = open > 0 ? ((last - open) / open * 100) : 0;
+      if (vol===0 && oi===0) return;
+      const c = {
+        sym: d.ticker || ("SPX_"+strike+"_"+(isCall?'C':'P')),
+        strike, type: isCall?'call':'put',
+        uPrice: uP, last, bid, ask, vol, oi, iv, pctChg,
+        otm, dist: Math.abs(strike-uP).toFixed(1),
+        distP: uP>0?((Math.abs(strike-uP)/uP)*100).toFixed(2):"0",
+        volOi: oi>0?vol/oi:0,
+      };
+      const sc = calcScore(c);
+      c.score = sc.total; c.bd = sc.bd;
+      contracts.push(c);
+    });
+
+    if (!contracts.length) throw new Error("لا عقود. السوق ربما مغلق أو لا توجد عقود 0DTE اليوم.");
+
+    state.contracts = contracts;
+    state.price = uP;
+    state.lastUp = new Date();
+    if (!state.isLive) state.isLive = true;
+
+    // Save history
+    const day = getToday();
+    if (!state.history[day]) state.history[day] = [];
+    const top50 = contracts.slice().sort((a,b)=>b.score-a.score).slice(0,50).map(c=>({
+      s:c.sym, k:c.strike, t:c.type, l:c.last, b:c.bid, a:c.ask,
+      v:c.vol, o:c.oi, iv:c.iv, p:c.pctChg, otm:c.otm, sc:c.score, voi:c.volOi
+    }));
+    state.history[day].push({ time:new Date().toLocaleTimeString(), ts:Date.now(), spx:uP, hot:contracts.filter(c=>c.score>=60).length, n:contracts.length, c:top50 });
+    if (state.history[day].length>20) state.history[day]=state.history[day].slice(-20);
+    const keys=Object.keys(state.history).sort();
+    while(keys.length>30){delete state.history[keys.shift()];}
+    saveHist();
+
+    // Update watchlist
+    state.watchlist = state.watchlist.map(w=>{
+      const m = contracts.find(c=>c.sym===w.sym);
+      return m?{...w,cur:m.last}:w;
+    });
+    saveWL();
+
+  } catch(e){ state.error = e.message; }
+  state.loading = false;
+  render();
+}
+
+function startTimer() {
+  if (timer) clearInterval(timer);
+  state.cd = INT;
+  timer = setInterval(()=>{
+    state.cd--;
+    const el = document.getElementById('cd-span');
+    if (el) el.textContent = state.cd+'s';
+    if (state.cd<=0){ fetchData(); state.cd=INT; }
+  },1000);
+}
+
+function toggleLive() {
+  if (state.isLive) {
+    state.isLive = false;
+    if (timer){ clearInterval(timer); timer=null; }
+  } else {
+    fetchData();
+    startTimer();
+  }
+  render();
+}
+
+function addWatch(sym, strike, type, score, last) {
+  if (state.watchlist.find(w=>w.sym===sym)) return;
+  state.watchlist.push({ id:Date.now(), sym, str:strike, ty:type, sc:score, en:last, cur:null, at:Date.now() });
+  saveWL(); render();
+}
+function removeWatch(id) {
+  state.watchlist = state.watchlist.filter(w=>w.id!==id);
+  saveWL(); render();
+}
+
+function getDisplayed(contracts) {
+  let r = [...contracts];
+  if (state.filter==="calls") r=r.filter(c=>c.type==="call");
+  if (state.filter==="puts")  r=r.filter(c=>c.type==="put");
+  if (state.minSc>0) r=r.filter(c=>c.score>=state.minSc);
+  r.sort((a,b)=>{
+    if (state.sortBy==="score")  return b.score-a.score;
+    if (state.sortBy==="voloi")  return b.volOi-a.volOi;
+    if (state.sortBy==="volume") return b.vol-a.vol;
+    if (state.sortBy==="cheap")  return a.last-b.last;
+    if (state.sortBy==="iv")     return b.iv-a.iv;
+    return 0;
+  });
+  return r;
+}
+
+function contractCard(c, i, inWatch) {
+  const isHot = c.score>=60;
+  const chgClr = c.pctChg>=0?"#00ff88":"#ff3b48";
+  const exp = state.expanded===c.sym;
+  let html = '<div class="contract '+(isHot?'hot':'normal')+'" onclick="toggleExp(\''+c.sym+'\')">';
+  if (isHot) html += '<div class="hot-badge">HOT</div>';
+  html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+    +'<span class="mono" style="width:18px;text-align:center;font-size:9px;font-weight:700;color:'+(i<3?'#00ff88':'#333c50')+'">'+(i+1)+'</span>'
+    +'<span class="type-badge '+(c.type==='call'?'type-call':'type-put')+'">'+c.type+'</span>'
+    +'<div style="min-width:60px">'
+      +'<div style="display:flex;align-items:baseline;gap:3px">'
+        +'<span class="mono" style="font-size:13px;font-weight:700">'+c.strike+'</span>'
+        +'<span style="font-size:7px;color:#333c50">'+(c.otm?'OTM':'ITM')+'</span>'
+      +'</div>'
+      +'<div style="display:flex;gap:4px;margin-top:1px">'
+        +'<span class="mono" style="font-size:11px;color:#ffc107;font-weight:600">$'+c.last.toFixed(2)+'</span>'
+        +'<span style="font-size:8px;color:'+chgClr+'">'+(c.pctChg>=0?'+':'')+c.pctChg.toFixed(1)+'%</span>'
+      +'</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:4px;flex:1;justify-content:center;flex-wrap:wrap">'
+      +[{l:"V/OI",v:c.volOi.toFixed(1)+"x",h:c.volOi>3},{l:"Vol",v:c.vol>999?(c.vol/1000).toFixed(1)+"K":""+c.vol,h:c.vol>3000},{l:"IV",v:(c.iv*100).toFixed(0)+"%",h:c.iv>0.6}]
+        .map(m=>'<div class="metric-badge '+(m.h?'h':'')+'"><span class="metric-label">'+m.l+'</span><span class="metric-value" style="color:'+(m.h?'#00ff88':'#777')+'">'+m.v+'</span></div>').join('')
+    +'</div>'
+    +ringSVG(c.score,36)
+    +'<button onclick="event.stopPropagation();addWatch(\''+c.sym+'\','+c.strike+',\''+c.type+'\','+c.score+','+c.last+')" '+(inWatch?'disabled':'')
+    +' style="padding:3px 8px;border-radius:4px;border:none;cursor:'+(inWatch?'default':'pointer')+';font-size:8px;font-weight:600;background:rgba(108,92,231,.1);color:'+(inWatch?'#555':'#9b90e0')+';flex-shrink:0">'
+    +(inWatch?'✓':'👁')+'</button>'
+  +'</div>';
+
+  if (exp) {
+    html += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.03)">'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">'
+      +[["Bid","$"+c.bid.toFixed(2)],["Ask","$"+c.ask.toFixed(2)],["Volume",c.vol.toLocaleString()],["OI",c.oi.toLocaleString()],["IV",(c.iv*100).toFixed(1)+"%"],["V/OI",c.volOi.toFixed(2)+"x"],["Dist","$"+c.dist],["Away",c.distP+"%"]]
+        .map(([l,v])=>'<div style="display:flex;justify-content:space-between;font-size:10px"><span style="color:#555">'+l+'</span><span class="mono" style="color:#aab">'+v+'</span></div>').join('')
+      +'</div>'
+      +'<div style="font-size:8px;color:#333c50;font-weight:600;letter-spacing:1px;margin-bottom:4px">SCORE: '+c.score+'/100</div>'
+      +Object.entries(c.bd).map(([k,s])=>'<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px"><span style="width:50px;font-size:8px;color:#555">'+k+'</span>'+barHTML(s.v,s.m)+'<span class="mono" style="width:28px;text-align:right;font-size:7px;color:#555">'+s.v+'/'+s.m+'</span><span class="mono" style="width:36px;text-align:right;font-size:7px;color:#444">'+s.d+'</span></div>').join('')
+    +'</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function render() {
+  document.getElementById('app').innerHTML = state.view==='history' ? renderHistory() : renderScanner();
+}
+
+function renderScanner() {
+  const displayed = getDisplayed(state.contracts);
+  const hotCount = state.contracts.filter(c=>c.score>=60).length;
+  const cV = state.contracts.filter(c=>c.type==="call").reduce((s,c)=>s+c.vol,0);
+  const pV = state.contracts.filter(c=>c.type==="put").reduce((s,c)=>s+c.vol,0);
+  const cpR = pV>0?(cV/pV).toFixed(2):"N/A";
+
+  let html = '<div class="header">'
+    +'<div>'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+        +'<span class="dot '+(state.isLive?'live':'off')+'"></span>'
+        +'<h1 style="font-size:17px;font-weight:700">🔬 SPX 0DTE <span style="color:#00ff88">Scanner</span></h1>'
+        +(state.price>0?'<span class="mono" style="font-size:13px;color:#ffc107;font-weight:600">$'+state.price.toFixed(2)+'</span>':'')
+        +'<span class="badge badge-delay">⏱ 15min DELAY</span>'
+      +'</div>'
+      +'<p style="font-size:9px;color:#333c50;margin:2px 0 0 15px">SPX • '+getToday()+' • '+state.contracts.length+' contracts • '+marketStatus()+(state.lastUp?' • '+state.lastUp.toLocaleTimeString():'')+'</p>'
+    +'</div>'
+    +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+      +(state.isLive?'<span id="cd-span" class="mono" style="font-size:10px;color:#333c50">'+state.cd+'s</span>':'')
+      +'<button class="btn" onclick="toggleLive()" style="background:'+(state.isLive?'rgba(0,255,136,0.08)':'rgba(255,59,72,0.08)')+';color:'+(state.isLive?'#00ff88':'#ff3b48')+'">'+(state.isLive?'● LIVE':'○ START')+'</button>'
+      +'<button class="btn" onclick="fetchData()" '+(state.loading?'disabled':'')+' style="border:1px solid rgba(255,255,255,0.05);background:transparent;color:#555">'+(state.loading?'⏳':'↻')+'</button>'
+      +'<button class="btn" onclick="state.view=\'history\';render()" style="background:rgba(108,92,231,0.08);color:#9b90e0">📅 History</button>'
+    +'</div>'
+  +'</div>';
+
+  if (state.error) html += '<div class="error-box">❌ '+state.error+'</div>';
+
+  if (state.contracts.length>0) {
+    html += '<div class="stats">'
+      +[{i:"🔥",l:"HOT",v:hotCount,c:"#00ff88"},{i:"📞",l:"CALL VOL",v:cV.toLocaleString(),c:"#00ff88"},{i:"📉",l:"PUT VOL",v:pV.toLocaleString(),c:"#ff3b48"},{i:"⚖️",l:"C/P",v:cpR,c:"#ffc107"}]
+        .map(s=>'<div class="stat-card"><div class="stat-label">'+s.i+' '+s.l+'</div><div class="stat-value" style="color:'+s.c+'">'+s.v+'</div></div>').join('')
+    +'</div>';
+  }
+
+  if (state.watchlist.length>0) {
+    html += '<div class="watchlist"><div style="font-size:10px;font-weight:700;color:#8b80d4;margin-bottom:7px">👁 WATCHLIST — '+state.watchlist.length+'</div>';
+    state.watchlist.forEach(w=>{
+      const age=Math.round((Date.now()-w.at)/60000);
+      const diff=w.cur!==null?w.cur-w.en:null;
+      const pct=diff!==null&&w.en>0?(diff/w.en*100):null;
+      const exploded=pct!==null&&pct>50, failed=pct!==null&&pct<-30;
+      const cls=exploded?'watch-exploded':failed?'watch-failed':'watch-waiting';
+      html += '<div class="watch-item '+cls+'">'
+        +'<span class="type-badge '+(w.ty==='call'?'type-call':'type-put')+'">'+w.ty+'</span>'
+        +'<span class="mono" style="font-weight:600">'+w.str+'</span>'
+        +'<span style="color:#555;font-size:9px">Sc:'+w.sc+'</span>'
+        +'<span style="color:#777;font-size:9px">$'+w.en.toFixed(2)+'</span>'
+        +(pct!==null?'<span class="mono" style="font-weight:700;font-size:11px;color:'+(pct>=0?'#00ff88':'#ff3b48')+';margin-left:auto">'+(pct>=0?'+':'')+pct.toFixed(1)+'%'+(exploded?' 🔥':'')+'</span>':'<span style="color:#444;font-size:9px;margin-left:auto">waiting...</span>')
+        +'<span style="color:#444;font-size:8px">'+age+'m</span>'
+        +'<button onclick="removeWatch('+w.id+')" style="background:none;border:none;color:#444;cursor:pointer;font-size:13px">×</button>'
+      +'</div>';
+    });
+    html += '</div>';
+  }
+
+  if (state.contracts.length>0) {
+    html += '<div class="filters">'
+      +'<div class="filter-group">'+["all","calls","puts"].map(f=>'<button class="filter-btn '+(state.filter===f?'ag':'')+'" onclick="state.filter=\''+f+'\';render()">'+(f==='all'?'All':f==='calls'?'Calls':'Puts')+'</button>').join('')+'</div>'
+      +'<div class="filter-group">'+[["score","Score"],["voloi","V/OI"],["volume","Vol"],["cheap","Cheap"],["iv","IV"]].map(([k,l])=>'<button class="filter-btn '+(state.sortBy===k?'ay':'')+'" onclick="state.sortBy=\''+k+'\';render()">'+l+'</button>').join('')+'</div>'
+      +'<div class="filter-group"><span style="font-size:8px;color:#333c50;font-weight:600;padding:0 4px">MIN:</span>'+[0,30,50,65].map(s=>'<button class="filter-btn '+(state.minSc===s?'ap':'')+'" onclick="state.minSc='+s+';render()">'+(s===0?'All':s+'+')+'</button>').join('')+'</div>'
+      +'<span style="margin-left:auto;font-size:9px;color:#333c50">'+displayed.length+' shown</span>'
+    +'</div>';
+  }
+
+  if (state.loading && !state.contracts.length) {
+    html += '<div class="loading-center"><div style="font-size:28px;animation:pulse 1.5s infinite">📡</div>'<div style="font-size:12px;color:#555;margin-top:8px">Fetching SPX options from Polygon.io...</div>'div>';
+  } else if (!state.loading && !state.contracts.length && !state.error) {
+    html += '<div class="loading-center"><button onclick="fetchData()" style="padding:10px 28px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:700;background:linear-gradient(135deg,#00ff88,#00cc6a);color:#080c14">📡 Fetch Live Data</button></div>';
+  }
+
+  html += '<div style="padding:0 16px">';
+  displayed.forEach((c,i)=>{ html += contractCard(c,i,!!state.watchlist.find(w=>w.sym===c.sym)); });
+  html += '</div>';
+  html += '<div style="margin-top:14px;padding:10px 16px;border-top:1px solid rgba(255,255,255,.02);font-size:7px;color:#1d2233;text-align:center;line-height:1.6">Polygon.io Starter (15-min delayed) • Auto-refresh '+INT+'s • 📅 Auto-save History<br><span style="color:#ff3b48">⚠️ Not financial advice. 0DTE = extreme risk.</span></div>';
+  return html;
+}
+
+function renderHistory() {
+  const histDates = Object.keys(state.history).sort().reverse();
+  const scans = state.selDate ? (state.history[state.selDate]||[]).slice().reverse() : [];
+  const scan = state.selScan!==null ? scans[state.selScan] : null;
+  let histContracts = [];
+  if (scan) {
+    histContracts = scan.c.map(c=>({
+      sym:c.s, strike:c.k, type:c.t, last:c.l, bid:c.b, ask:c.a,
+      vol:c.v, oi:c.o, iv:c.iv, pctChg:c.p, otm:c.otm, score:c.sc, volOi:c.voi,
+      dist:Math.abs(c.k-(scan.spx||scan.spy||0)).toFixed(1),
+      distP:(scan.spx||scan.spy)>0?((Math.abs(c.k-(scan.spx||scan.spy))/(scan.spx||scan.spy))*100).toFixed(2):"0",
+      bd:calcScore({vol:c.v,oi:c.o,last:c.l,bid:c.b,ask:c.a,iv:c.iv,pctChg:c.p,otm:c.otm}).bd
+    }));
+    let r=[...histContracts];
+    if (state.filter==="calls") r=r.filter(c=>c.type==="call");
+    if (state.filter==="puts")  r=r.filter(c=>c.type==="put");
+    if (state.minSc>0) r=r.filter(c=>c.score>=state.minSc);
+    r.sort((a,b)=>state.sortBy==="score"?b.score-a.score:state.sortBy==="voloi"?b.volOi-a.volOi:state.sortBy==="volume"?b.vol-a.vol:state.sortBy==="cheap"?a.last-b.last:b.iv-a.iv);
+    histContracts=r;
+  }
+
+  let html = '<div style="min-height:100vh;background:#080c14;color:#d0d5e0;font-family:\'Inter\',sans-serif;padding:12px 14px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+        +'<span style="font-size:16px;font-weight:700">📅 History</span>'
+        +(state.selDate?'<span class="mono" style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(108,92,231,.1);color:#9b90e0">'+state.selDate+'</span>':'')
+      +'</div>'
+      +'<div style="display:flex;gap:6px">'
+        +'<button onclick="state.view=\'scanner\';state.selDate=null;state.selScan=null;render()" style="padding:5px 12px;border-radius:5px;border:none;cursor:pointer;font-size:10px;font-weight:700;background:rgba(0,255,136,.08);color:#00ff88">← Scanner</button>'
+        +'<button onclick="if(confirm(\'حذف كل السجل؟\')){state.history={};state.selDate=null;state.selScan=null;saveHist();render();}" style="padding:5px 12px;border-radius:5px;border:none;cursor:pointer;font-size:10px;font-weight:700;background:rgba(255,59,72,.06);color:#ff3b48">🗑 Clear</button>'
+      +'</div>'
+    +'</div>';
+
+  if (!histDates.length) {
+    html += '<div style="text-align:center;padding:40px;color:#555;font-size:12px">لا يوجد سجل بعد. شغّل الماسح أولاً.</div>';
+  } else {
+    html += '<div style="display:grid;grid-template-columns:'+(state.selDate?'160px 1fr':'1fr')+';gap:10px">';
+    html += '<div><div style="font-size:8px;color:#333c50;font-weight:600;letter-spacing:1px;margin-bottom:6px">DATES</div>';
+    histDates.forEach(d=>{
+      const sc=state.history[d]||[];
+      html += '<div class="hist-day '+(state.selDate===d?'sel':'')+'" onclick="state.selDate=\''+d+'\';state.selScan=null;render()">'
+        +'<div style="font-weight:600">'+d+'</div>'
+        +'<div style="font-size:9px;color:#555">'+sc.length+' scans</div>'
+      +'</div>';
+    });
+    html += '</div>';
+    if (state.selDate) {
+      html += '<div>';
+      html += '<div style="margin-bottom:8px"><div style="font-size:8px;color:#333c50;font-weight:600;letter-spacing:1px;margin-bottom:5px">SCANS</div><div style="display:flex;gap:4px;flex-wrap:wrap">';
+      scans.forEach((sc,i)=>{
+       html += '<div class="hist-scan '+(state.selScan===i?'sel':'')+' " onclick="state.selScan='+i+';render()">'+sc.time+' • $'+(sc.spx||sc.spy||0).toFixed(2)+' • '+sc.hot+' hot/'+sc.n+'</div>';
+      });
+      html += '</div></div>';
+      if (scan) {
+        html += '<div class="filters" style="padding:0 0 8px">'
+          +'<div class="filter-group">'+["all","calls","puts"].map(f=>'<button class="filter-btn '+(state.filter===f?'ag':'')+'" onclick="state.filter=\''+f+'\';render()">'+(f==='all'?'All':f==='calls'?'Calls':'Puts')+'</button>').join('')+'</div>'
+          +'<div class="filter-group">'+[["score","Score"],["voloi","V/OI"],["volume","Vol"],["cheap","Cheap"],["iv","IV"]].map(([k,l])=>'<button class="filter-btn '+(state.sortBy===k?'ay':'')+'" onclick="state.sortBy=\''+k+'\';render()">'+l+'</button>').join('')+'</div>'
+          +'<div class="filter-group">'+[0,30,50,65].map(s=>'<button class="filter-btn '+(state.minSc===s?'ap':'')+'" onclick="state.minSc='+s+';render()">'+(s===0?'All':s+'+')+'</button>').join('')+'</div>'
+        +'</div>';
+        histContracts.forEach((c,i)=>{ html += contractCard(c,i,false); });
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function toggleExp(sym) { state.expanded = state.expanded===sym?null:sym; render(); }
+
+render();
+</script>
+</body>
+</html>
