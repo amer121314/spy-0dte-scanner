@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SPY 0DTE Explosion Scanner</title>
+<title>SPX 0DTE Explosion Scanner</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -77,8 +77,8 @@ let state = {
   minSc: 0,
   expanded: null,
   cd: 0,
-  history: JSON.parse(localStorage.getItem('spy_hist') || '{}'),
-  watchlist: JSON.parse(localStorage.getItem('spy_wl') || '[]'),
+  history: JSON.parse(localStorage.getItem('spx_hist') || '{}'),
+  watchlist: JSON.parse(localStorage.getItem('spx_wl') || '[]'),
   selDate: null,
   selScan: null,
 };
@@ -144,23 +144,29 @@ function marketStatus() {
   return "🟢 مفتوح";
 }
 
-function saveHist() { try { localStorage.setItem('spy_hist', JSON.stringify(state.history)); } catch(e){} }
-function saveWL()   { try { localStorage.setItem('spy_wl',   JSON.stringify(state.watchlist)); } catch(e){} }
+function saveHist() { try { localStorage.setItem('spx_hist', JSON.stringify(state.history)); } catch(e){} }
+function saveWL()   { try { localStorage.setItem('spx_wl',   JSON.stringify(state.watchlist)); } catch(e){} }
 
 async function fetchData() {
   state.loading = true; state.error = ""; render();
   try {
     const today = getToday();
-    // Get SPY price
+    // Get SPX price
     let spyPrice = 0;
     try {
-      const pr = await fetch(API_BASE+"/v2/aggs/ticker/SPY/prev?adjusted=true&apiKey="+API_KEY);
+      const pr = await fetch(API_BASE+"/v2/aggs/ticker/SPX/prev?adjusted=true&apiKey="+API_KEY);
       const pd = await pr.json();
       spyPrice = pd?.results?.[0]?.c || 0;
+      if (!spyPrice) {
+        // fallback: use I:SPX
+        const pr2 = await fetch(API_BASE+"/v2/aggs/ticker/I:SPX/prev?adjusted=true&apiKey="+API_KEY);
+        const pd2 = await pr2.json();
+        spyPrice = pd2?.results?.[0]?.c || 0;
+      }
     } catch(e){}
 
-    // Get options snapshot
-    const res = await fetch(API_BASE+"/v3/snapshot/options/SPY?expiration_date="+today+"&limit=250&apiKey="+API_KEY);
+    // Get SPX options snapshot (uses O:SPX for options)
+    const res = await fetch(API_BASE+"/v3/snapshot/options/SPX?expiration_date="+today+"&limit=250&apiKey="+API_KEY);
     if (!res.ok) {
       const ed = await res.json().catch(()=>({}));
       if (res.status===403) throw new Error("API Key لا يملك صلاحية Options. تأكد من الاشتراك.");
@@ -172,7 +178,7 @@ async function fetchData() {
     let results = data?.results || [];
     if (!results.length) {
       // fallback: no expiry filter
-      const res2 = await fetch(API_BASE+"/v3/snapshot/options/SPY?limit=250&apiKey="+API_KEY);
+      const res2 = await fetch(API_BASE+"/v3/snapshot/options/SPX?limit=250&apiKey="+API_KEY);
       const data2 = await res2.json();
       results = data2?.results || [];
     }
@@ -196,7 +202,7 @@ async function fetchData() {
       const pctChg = open > 0 ? ((last - open) / open * 100) : 0;
       if (vol===0 && oi===0) return;
       const c = {
-        sym: d.ticker || ("SPY_"+strike+"_"+(isCall?'C':'P')),
+        sym: d.ticker || ("SPX_"+strike+"_"+(isCall?'C':'P')),
         strike, type: isCall?'call':'put',
         uPrice: uP, last, bid, ask, vol, oi, iv, pctChg,
         otm, dist: Math.abs(strike-uP).toFixed(1),
@@ -222,7 +228,7 @@ async function fetchData() {
       s:c.sym, k:c.strike, t:c.type, l:c.last, b:c.bid, a:c.ask,
       v:c.vol, o:c.oi, iv:c.iv, p:c.pctChg, otm:c.otm, sc:c.score, voi:c.volOi
     }));
-    state.history[day].push({ time:new Date().toLocaleTimeString(), ts:Date.now(), spy:uP, hot:contracts.filter(c=>c.score>=60).length, n:contracts.length, c:top50 });
+    state.history[day].push({ time:new Date().toLocaleTimeString(), ts:Date.now(), spx:uP, hot:contracts.filter(c=>c.score>=60).length, n:contracts.length, c:top50 });
     if (state.history[day].length>20) state.history[day]=state.history[day].slice(-20);
     const keys=Object.keys(state.history).sort();
     while(keys.length>30){delete state.history[keys.shift()];}
@@ -346,11 +352,11 @@ function renderScanner() {
     +'<div>'
       +'<div style="display:flex;align-items:center;gap:8px">'
         +'<span class="dot '+(state.isLive?'live':'off')+'"></span>'
-        +'<h1 style="font-size:17px;font-weight:700">🔬 SPY 0DTE <span style="color:#00ff88">Scanner</span></h1>'
+        +'<h1 style="font-size:17px;font-weight:700">🔬 SPX 0DTE <span style="color:#00ff88">Scanner</span></h1>'
         +(state.price>0?'<span class="mono" style="font-size:13px;color:#ffc107;font-weight:600">$'+state.price.toFixed(2)+'</span>':'')
         +'<span class="badge badge-delay">⏱ 15min DELAY</span>'
       +'</div>'
-      +'<p style="font-size:9px;color:#333c50;margin:2px 0 0 15px">SPY • '+getToday()+' • '+state.contracts.length+' contracts • '+marketStatus()+(state.lastUp?' • '+state.lastUp.toLocaleTimeString():'')+'</p>'
+      +'<p style="font-size:9px;color:#333c50;margin:2px 0 0 15px">SPX • '+getToday()+' • '+state.contracts.length+' contracts • '+marketStatus()+(state.lastUp?' • '+state.lastUp.toLocaleTimeString():'')+'</p>'
     +'</div>'
     +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
       +(state.isLive?'<span id="cd-span" class="mono" style="font-size:10px;color:#333c50">'+state.cd+'s</span>':'')
@@ -400,7 +406,7 @@ function renderScanner() {
   }
 
   if (state.loading && !state.contracts.length) {
-    html += '<div class="loading-center"><div style="font-size:28px;animation:pulse 1.5s infinite">📡</div><div style="font-size:12px;color:#555;margin-top:8px">Fetching SPY options from Polygon.io...</div></div>';
+    html += '<div class="loading-center"><div style="font-size:28px;animation:pulse 1.5s infinite">📡</div>'<div style="font-size:12px;color:#555;margin-top:8px">Fetching SPX options from Polygon.io...</div>'div>';
   } else if (!state.loading && !state.contracts.length && !state.error) {
     html += '<div class="loading-center"><button onclick="fetchData()" style="padding:10px 28px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:700;background:linear-gradient(135deg,#00ff88,#00cc6a);color:#080c14">📡 Fetch Live Data</button></div>';
   }
@@ -421,8 +427,8 @@ function renderHistory() {
     histContracts = scan.c.map(c=>({
       sym:c.s, strike:c.k, type:c.t, last:c.l, bid:c.b, ask:c.a,
       vol:c.v, oi:c.o, iv:c.iv, pctChg:c.p, otm:c.otm, score:c.sc, volOi:c.voi,
-      dist:Math.abs(c.k-(scan.spy||0)).toFixed(1),
-      distP:scan.spy>0?((Math.abs(c.k-scan.spy)/scan.spy)*100).toFixed(2):"0",
+      dist:Math.abs(c.k-(scan.spx||scan.spy||0)).toFixed(1),
+      distP:(scan.spx||scan.spy)>0?((Math.abs(c.k-(scan.spx||scan.spy))/(scan.spx||scan.spy))*100).toFixed(2):"0",
       bd:calcScore({vol:c.v,oi:c.o,last:c.l,bid:c.b,ask:c.a,iv:c.iv,pctChg:c.p,otm:c.otm}).bd
     }));
     let r=[...histContracts];
@@ -462,7 +468,7 @@ function renderHistory() {
       html += '<div>';
       html += '<div style="margin-bottom:8px"><div style="font-size:8px;color:#333c50;font-weight:600;letter-spacing:1px;margin-bottom:5px">SCANS</div><div style="display:flex;gap:4px;flex-wrap:wrap">';
       scans.forEach((sc,i)=>{
-        html += '<div class="hist-scan '+(state.selScan===i?'sel':'')+'" onclick="state.selScan='+i+';render()">'+sc.time+' • $'+(sc.spy||0).toFixed(2)+' • '+sc.hot+' hot/'+sc.n+'</div>';
+       html += '<div class="hist-scan '+(state.selScan===i?'sel':'')+' " onclick="state.selScan='+i+';render()">'+sc.time+' • $'+(sc.spx||sc.spy||0).toFixed(2)+' • '+sc.hot+' hot/'+sc.n+'</div>';
       });
       html += '</div></div>';
       if (scan) {
