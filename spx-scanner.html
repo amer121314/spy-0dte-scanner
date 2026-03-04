@@ -406,7 +406,7 @@ function renderScanner() {
   }
 
   if (state.loading && !state.contracts.length) {
-    html += '<div class="loading-center"><div style="font-size:28px;animation:pulse 1.5s infinite">📡</div>'<div style="font-size:12px;color:#555;margin-top:8px">Fetching SPX options from Polygon.io...</div>'div>';
+    html += '<div class="loading-center"><div style="font-size:28px;animation:pulse 1.5s infinite">📡</div><div style="font-size:12px;color:#555;margin-top:8px">Fetching SPX options from Polygon.io...</div></div>';
   } else if (!state.loading && !state.contracts.length && !state.error) {
     html += '<div class="loading-center"><button onclick="fetchData()" style="padding:10px 28px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:700;background:linear-gradient(135deg,#00ff88,#00cc6a);color:#080c14">📡 Fetch Live Data</button></div>';
   }
