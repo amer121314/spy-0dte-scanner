@@ -106,27 +106,28 @@ function saveHist() { try{localStorage.setItem('spx5_hist',JSON.stringify(S.hist
 function saveWL()   { try{localStorage.setItem('spx5_wl',  JSON.stringify(S.watchlist));}catch(e){} }
 
 function calcScore(c) {
-  var voi=c.oi>0?c.vol/c.oi:0, voiS=Math.min(voi*5,25);
+  // V/OI: الأهم — يكشف الأموال الكبيرة (40 نقطة)
+  var voi=c.oi>0?c.vol/c.oi:0;
+  var voiS=voi>=50?40:voi>=20?35:voi>=10?28:voi>=5?20:voi>=2?12:voi>=1?6:Math.min(voi*6,6);
+  // Cheap OTM (20 نقطة)
   var p=c.last||0;
   var cheap=(c.otm&&p>0&&p<1)?20:(c.otm&&p<3)?14:(c.otm&&p<6)?8:c.otm?3:0;
+  // IV (10 نقطة)
   var iv=(c.iv||0)*100;
-  var ivS=iv>100?15:iv>70?12:iv>50?8:iv>30?4:0;
-  var volS=c.vol>10000?10:c.vol>5000?8:c.vol>1000?5:c.vol>200?2:0;
+  var ivS=iv>100?10:iv>70?8:iv>50?5:iv>30?2:0;
+  // Volume (20 نقطة)
+  var volS=c.vol>100000?20:c.vol>50000?17:c.vol>20000?14:c.vol>10000?10:c.vol>5000?7:c.vol>1000?4:c.vol>200?2:0;
+  // Spread (10 نقطة)
   var mid=(c.ask+c.bid)/2, spr=mid>0?(c.ask-c.bid)/mid:1;
-  var sprS=spr<.08?8:spr<.15?6:spr<.3?3:0;
-  var absPct=Math.abs(c.pctChg||0);
-  var chgS=absPct>50?12:absPct>20?8:absPct>10?4:0;
-  var otmB=c.otm?10:0;
+  var sprS=spr<.08?10:spr<.15?7:spr<.3?4:0;
   return {
-    total:Math.min(Math.round(voiS+cheap+ivS+volS+sprS+chgS+otmB),100),
+    total:Math.min(Math.round(voiS+cheap+ivS+volS+sprS),100),
     bd:{
-      'Vol/OI':{v:Math.round(voiS),m:25,d:voi.toFixed(1)+'x'},
+      'Vol/OI':{v:Math.round(voiS),m:40,d:voi.toFixed(1)+'x'},
       'Cheap': {v:Math.round(cheap),m:20,d:'$'+p.toFixed(2)},
-      'IV':    {v:Math.round(ivS),  m:15,d:iv.toFixed(0)+'%'},
-      'Volume':{v:Math.round(volS), m:10,d:c.vol>999?(c.vol/1000).toFixed(1)+'K':''+c.vol},
-      'Spread':{v:Math.round(sprS), m:8, d:(spr*100).toFixed(0)+'%'},
-      'Move':  {v:Math.round(chgS), m:12,d:(c.pctChg||0).toFixed(1)+'%'},
-      'OTM':   {v:Math.round(otmB), m:10,d:c.otm?'Yes':'No'}
+      'IV':    {v:Math.round(ivS),  m:10,d:iv.toFixed(0)+'%'},
+      'Volume':{v:Math.round(volS), m:20,d:c.vol>999?(c.vol/1000).toFixed(1)+'K':''+c.vol},
+      'Spread':{v:Math.round(sprS), m:10,d:(spr*100).toFixed(0)+'%'}
     }
   };
 }
