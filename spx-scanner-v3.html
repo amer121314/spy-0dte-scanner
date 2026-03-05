@@ -69,7 +69,7 @@ body{background:#0a0e17;color:#e4e8f0;font-family:'Instrument Sans','SF Pro Disp
 <script>
 var API_KEY = "7TIsr4oKxRzk6kr4mFFNDbpdgZ1My2wu";
 var API_BASE = "https://api.polygon.io";
-var REFRESH_SEC = 60;
+var REFRESH_SEC = 60; // default, overridden by S.refreshInterval
 
 // ── State ──
 var S = {
@@ -89,8 +89,30 @@ var S = {
   ticker: "SPX",
   history: {},
   histSelDate: null,
-  histSelScanIdx: null
+  histSelScanIdx: null,
+  refreshInterval: 60,
+  watchlist: []
 };
+
+try { S.watchlist = JSON.parse(localStorage.getItem("spx3_wl") || "[]"); } catch(e){}
+
+function saveWL() {
+  try { localStorage.setItem("spx3_wl", JSON.stringify(S.watchlist)); } catch(e){}
+}
+
+function addWatch(ticker, strike, type, score, lastPrice) {
+  if (S.watchlist.find(function(w){return w.ticker===ticker;})) return;
+  S.watchlist.push({
+    id: Date.now(), ticker: ticker, strike: strike, type: type,
+    score: score, entryPrice: lastPrice, curPrice: null, addedAt: Date.now()
+  });
+  saveWL(); render();
+}
+
+function removeWatch(id) {
+  S.watchlist = S.watchlist.filter(function(w){return w.id!==id;});
+  saveWL(); render();
+}
 
 try { S.history = JSON.parse(localStorage.getItem("spx3_hist") || "{}"); } catch(e){}
 
@@ -212,13 +234,19 @@ function parsePolygonData(data, fallbackPrice) {
 var _timer = null;
 function startTimer() {
   if (_timer) clearInterval(_timer);
-  S.countdown = REFRESH_SEC;
+  S.countdown = S.refreshInterval;
   _timer = setInterval(function() {
     S.countdown--;
     var el = document.getElementById("cd");
     if (el) el.textContent = S.countdown + "s";
-    if (S.countdown <= 0) { fetchData(); S.countdown = REFRESH_SEC; }
+    if (S.countdown <= 0) { fetchData(); S.countdown = S.refreshInterval; }
   }, 1000);
+}
+
+function setRefreshInterval(sec) {
+  S.refreshInterval = sec;
+  if (S.isLive) startTimer();
+  render();
 }
 
 // ── Fetch ──
@@ -400,6 +428,14 @@ function contractRow(c, rank) {
 
   h += sparkline(c.low||c.lastPrice*0.5, c.high||c.lastPrice*1.5, c.lastPrice, c.open||c.lastPrice, priceColor, 70, 24);
   h += scoreRing(c.explosionScore, 48);
+  // Watch button
+  var inWatch = S.watchlist.find(function(w){return w.ticker===c.ticker;});
+  var watchId = (c.ticker||'').replace(/[^a-zA-Z0-9]/g,'_');
+  if (inWatch) {
+    h += '<button onclick="event.stopPropagation();removeWatch('+inWatch.id+')" style="padding:4px 8px;border-radius:5px;border:1px solid rgba(0,255,136,0.3);background:rgba(0,255,136,0.08);color:#00ff88;cursor:pointer;font-size:9px;font-weight:700;flex-shrink:0" title="Remove from watchlist">👁 ✓</button>';
+  } else {
+    h += '<button onclick="event.stopPropagation();addWatch(\''+c.ticker+'\','+c.strike+',\''+c.contract_type+'\','+c.explosionScore+','+c.lastPrice+')" style="padding:4px 8px;border-radius:5px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#555;cursor:pointer;font-size:9px;font-weight:700;flex-shrink:0" title="Add to watchlist">👁 Watch</button>';
+  }
   h += '</div>';
 
   if (exp) {
@@ -507,6 +543,13 @@ function renderScanner() {
   if (S.isLive) h += '<span id="cd" style="font-size:11px;color:#444b5a;font-family:\'JetBrains Mono\',monospace">'+S.countdown+'s</span>';
   h += '<button class="btn '+(S.isLive?"btn-live":"btn-stop")+'" onclick="toggleLive()">'+(S.isLive?"● LIVE":"○ START")+'</button>';
   h += '<button class="btn btn-refresh" onclick="fetchData()" '+(S.loading?"disabled":"")+'>'+( S.loading?"⏳":"↻")+' Refresh</button>';
+  // Refresh interval selector
+  h += '<div style="display:flex;gap:1px;background:rgba(255,255,255,0.02);border-radius:5px;padding:2px">';
+  [[60,'1m'],[120,'2m'],[180,'3m'],[300,'5m']].forEach(function(p){
+    var active = S.refreshInterval===p[0];
+    h += '<button onclick="setRefreshInterval('+p[0]+')" style="padding:3px 8px;border-radius:4px;border:none;cursor:pointer;font-size:9px;font-weight:700;background:'+(active?'rgba(0,255,136,0.1)':'transparent')+';color:'+(active?'#00ff88':'#444b5a')+'">'+p[1]+'</button>';
+  });
+  h += '</div>';
   h += '<button class="btn btn-hist" onclick="S.view=\'history\';render()">📅 History</button>';
   h += '</div></div>';
 
@@ -545,6 +588,32 @@ function renderScanner() {
     });
     h += '</div><span style="margin-left:auto;font-size:10px;color:#444b5a">'+displayed.length+' shown</span>';
     h += '</div>';
+  }
+
+  // Watchlist panel
+  if (S.watchlist.length > 0) {
+    h += '<div style="margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(14,18,30,0.9);border:1px solid rgba(108,92,231,0.2)">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+    h += '<span style="font-size:10px;font-weight:700;color:#9b90e0;letter-spacing:1px">👁 WATCHLIST ('+S.watchlist.length+')</span>';
+    h += '<button onclick="S.watchlist=[];saveWL();render()" style="font-size:8px;padding:2px 8px;border-radius:4px;border:1px solid rgba(255,59,72,0.2);background:transparent;color:#ff3b48;cursor:pointer">Clear All</button>';
+    h += '</div>';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+    S.watchlist.forEach(function(w) {
+      var typeClr = w.type==='call'?'#00ff88':'#ff3b48';
+      var live = S.contracts.find(function(c){return c.ticker===w.ticker;});
+      var curP = live ? live.lastPrice : w.entryPrice;
+      var pnlPct = w.entryPrice > 0 ? ((curP - w.entryPrice)/w.entryPrice*100) : 0;
+      var pnlClr = pnlPct >= 0 ? '#00ff88' : '#ff3b48';
+      h += '<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:6px;background:rgba(108,92,231,0.06);border:1px solid rgba(108,92,231,0.15)">';
+      h += '<span style="font-size:9px;color:'+typeClr+';font-weight:700">'+w.type.toUpperCase()+'</span>';
+      h += '<span style="font-size:11px;font-weight:700;color:#e4e8f0;font-family:\'JetBrains Mono\',monospace">'+w.strike+'</span>';
+      h += '<span style="font-size:9px;color:#ffc107;font-family:\'JetBrains Mono\',monospace">$'+curP.toFixed(2)+'</span>';
+      if (live) h += '<span style="font-size:9px;color:'+pnlClr+';font-family:\'JetBrains Mono\',monospace">'+(pnlPct>=0?"+":"")+pnlPct.toFixed(1)+'%</span>';
+      h += '<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(0,255,136,0.06);color:#00ff88">'+w.score+'</span>';
+      h += '<button onclick="removeWatch('+w.id+')" style="font-size:9px;padding:1px 5px;border-radius:3px;border:none;background:rgba(255,59,72,0.1);color:#ff3b48;cursor:pointer">✕</button>';
+      h += '</div>';
+    });
+    h += '</div></div>';
   }
 
   // Loading
