@@ -304,7 +304,7 @@ function getDisplayed(contracts) {
   if(S.filter==='puts')  r=r.filter(function(c){return c.type==='put';});
   if(S.minScore>0) r=r.filter(function(c){return c.score>=S.minScore;});
   r.sort(function(a,b){
-    if(S.sortBy==='score')  return b.score-a.score;
+    if(S.sortBy==='score')  { var d=b.score-a.score; return d!==0?d:b.volOi-a.volOi; }
     if(S.sortBy==='voloi')  return b.volOi-a.volOi;
     if(S.sortBy==='volume') return b.vol-a.vol;
     if(S.sortBy==='cheap')  return a.last-b.last;
